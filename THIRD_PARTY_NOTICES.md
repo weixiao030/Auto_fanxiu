@@ -6,7 +6,7 @@
 
 按项目维护者要求，`web/appreciation-code.webp` 沿用 [Auto_Dps](https://github.com/weixiao030/Auto_Dps) 的作者赞赏码。来源为该仓库 `web/public/appreciation-code.webp`，600×600、35,700 字节，SHA-256：`0edee853c64f2aee537ffeade7f479483eb0de9567394cd363d09f8d64fe4f39`。
 
-Auto_Dps 的第三方说明记载，赞赏码资源最初来自 [IdleLegions-AutoAbyss](https://github.com/weixiao030/IdleLegions-AutoAbyss)，参考提交 `46573b15f8b95383ce8ddc162638568ab54c0305`。对应许可保留于 `licenses/IdleLegions-AutoAbyss-Apache-2.0.txt`。图片未更改收款内容，界面标注“o3o · 沿用 Auto_Dps 作者赞赏码”；赞赏完全自愿，不解锁功能。
+Auto_Dps 的第三方说明记载，赞赏码资源最初来自 [IdleLegions-AutoAbyss](https://github.com/weixiao030/IdleLegions-AutoAbyss)，参考提交 `46573b15f8b95383ce8ddc162638568ab54c0305`。对应许可保留于 `licenses/IdleLegions-AutoAbyss-Apache-2.0.txt`。图片未更改收款内容；赞赏完全自愿，不解锁功能。资源来源与许可在本文及 licenses/ 中保留。
 
 声明交互及项目支持区参考 Auto_Dps 的产品形式；本项目以原生 HTML/CSS/JavaScript 独立实现，没有复制其 React 实现代码。Auto_Dps 自有代码的使用许可不被本项目 Apache-2.0 许可替代。
 

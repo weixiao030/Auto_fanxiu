@@ -65,8 +65,11 @@ def main():
         page.keyboard.press('Escape')
         assert not dialog.is_visible()
         assert page.locator('#project-info [data-open-disclaimer]').evaluate('(el) => el === document.activeElement')
-        assert page.locator('#reference-github').get_attribute('href') == 'https://github.com/weixiao030/Auto_Dps'
-        assert page.locator('#reference-github').get_attribute('rel') == 'noopener noreferrer'
+        assert page.locator('#reference-github, #appreciation-owner, #appreciation-dialog-owner').count() == 0
+        assert 'Auto_Dps' not in page.locator('#project-info').inner_text()
+        assert 'o3o' not in page.locator('#project-info').inner_text()
+        assert page.locator('#project-github').get_attribute('href') == 'https://github.com/weixiao030/Auto_fanxiu'
+        assert page.locator('#project-github').get_attribute('rel') == 'noopener noreferrer'
 
         if info.get('appreciation_image'):
             assert page.locator('#appreciation-preview').is_visible()

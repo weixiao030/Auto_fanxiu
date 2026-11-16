@@ -35,9 +35,8 @@
     <p class="support-caption">如果助手帮到了你，可以自愿支持后续维护。</p>
     <button id="appreciation-preview" class="appreciation-preview" type="button" aria-label="放大查看赞赏码" hidden><img id="appreciation-code" alt="作者提供的赞赏码" width="188" height="188"></button>
     <p id="appreciation-unavailable" class="support-unavailable">赞赏码待作者提供</p>
-    <p id="appreciation-owner" class="support-owner" hidden></p>
     <p class="support-note">完全自愿，不影响任何功能。扫码后请核对收款人。</p>
-    <div class="project-links"><a id="project-github" target="_blank" rel="noopener noreferrer" hidden>项目 GitHub <span aria-hidden="true">↗</span></a><a id="reference-github" href="https://github.com/weixiao030/Auto_Dps" target="_blank" rel="noopener noreferrer">参考项目 Auto_Dps <span aria-hidden="true">↗</span></a><button type="button" class="text-button" data-open-disclaimer>使用说明与声明</button></div>
+    <div class="project-links"><a id="project-github" target="_blank" rel="noopener noreferrer" hidden>项目 GitHub <span aria-hidden="true">↗</span></a><button type="button" class="text-button" data-open-disclaimer>使用说明与声明</button></div>
    </aside>
   </main>
   <dialog id="disclaimer-dialog" class="project-dialog" aria-labelledby="disclaimer-title" aria-describedby="disclaimer-intro">
@@ -48,10 +47,10 @@
     <section><h3>自动操作会实际消耗资源</h3><p>任务由游戏客户端执行，可能使用材料、道具或尝试战斗。请检查任务开关、保留数量和物品固定锁；Steam 可上架物品保护与分类品质保留独立生效，关闭相应保护后会允许使用这些物品。</p></section>
     <section><h3>以游戏确认结果为准</h3><p>游戏更新、网络和服务器规则可能影响兼容性与执行结果。助手按当前状态重算并等待确认，但不保证所有版本可用或账号安全。遇到异常可暂停自动修炼并查看运行记录。</p></section>
     <section><h3>随时掌控运行</h3><p>关闭网页不会停止自动任务。需要停止派发时，请点击“暂停自动修炼”；已提交的操作仍等待游戏结算。此弹窗不会更改现有任务、物品保护、游戏会话或排队状态。</p></section>
-    <section><h3>自愿赞赏</h3><p>赞赏不影响功能，不代表购买服务或效果承诺。扫码付款前请自行核对收款人和金额。右侧 GitHub 入口会注明本项目或参考项目。</p></section>
+    <section><h3>自愿赞赏</h3><p>赞赏不影响功能，不代表购买服务或效果承诺。扫码付款前请自行核对收款人和金额。项目 GitHub 提供源码与更新。</p></section>
    </div>
    <div class="dialog-actions"><p id="disclaimer-storage-note" class="muted">阅读记录仅保存在当前浏览器；声明更新后会再次提醒。</p><div><button id="disclaimer-later" class="secondary" type="button">暂时关闭</button><button id="disclaimer-acknowledge" class="primary" type="button" disabled>请阅读（3秒）</button></div></div>
   </dialog>
-  <dialog id="appreciation-dialog" class="project-dialog appreciation-dialog" aria-labelledby="appreciation-title"><div class="dialog-heading"><h2 id="appreciation-title">赞赏支持</h2><p id="appreciation-dialog-owner"></p></div><img id="appreciation-large" alt="放大后的作者赞赏码"><p class="support-note">请在支付软件中核对收款人和金额；赞赏完全自愿。</p><button id="appreciation-close" class="secondary" type="button">关闭</button></dialog>
+  <dialog id="appreciation-dialog" class="project-dialog appreciation-dialog" aria-labelledby="appreciation-title"><div class="dialog-heading"><h2 id="appreciation-title">赞赏支持</h2></div><img id="appreciation-large" alt="放大后的作者赞赏码"><p class="support-note">请在支付软件中核对收款人和金额；赞赏完全自愿。</p><button id="appreciation-close" class="secondary" type="button">关闭</button></dialog>
   <script src="/app.js"></script><script src="/inventory.js"></script><script src="/project-info.js"></script>
 </body></html>

@@ -1,4 +1,4 @@
-VERSION = '0.48'
+VERSION = '0.49'
 APP_NAME = '猫头凡修助手'
 APP_TITLE = APP_NAME + VERSION
 EXE_NAME = APP_TITLE + '.exe'

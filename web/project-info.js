@@ -52,7 +52,6 @@
   const appreciationDialog = byId('appreciation-dialog');
   function imageUnavailable() {
     preview.hidden = true;
-    byId('appreciation-owner').hidden = true;
     byId('appreciation-unavailable').hidden = false;
     byId('appreciation-unavailable').textContent = '赞赏码暂不可用';
     if (appreciationDialog.open) appreciationDialog.close();
@@ -62,7 +61,6 @@
   image.addEventListener('load', () => {
     preview.hidden = false;
     byId('appreciation-unavailable').hidden = true;
-    byId('appreciation-owner').hidden = !byId('appreciation-owner').textContent;
   });
   preview.addEventListener('click', () => {
     if (preview.hidden || !image.naturalWidth) return;
@@ -90,10 +88,6 @@
       }
       // Only the bundled, explicitly provided image is ever used as a payment code.
       if (info.appreciation_image === '/appreciation-code.webp') {
-        const owner = typeof info.appreciation_owner === 'string' ? info.appreciation_owner.slice(0, 100) : '';
-        byId('appreciation-owner').textContent = owner;
-        byId('appreciation-dialog-owner').textContent = owner;
-        image.alt = owner ? `${owner}的赞赏码` : '作者提供的赞赏码';
         image.src = info.appreciation_image;
       }
     } catch (_) {
