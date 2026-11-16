@@ -74,7 +74,7 @@ Object.assign(descriptions,{
  bounty_sync:'同步原游戏悬赏列表和服务器每日次数。',bounty_claim:'优先按战力门槛挑战怪物清剿，可单独允许玩家悬赏。',
  bounty_publish:'被捕后对当前主人发布一次悬赏，消耗悬赏令；此额外选项默认关闭。',
  slave_escape:'优先使用保护规则允许的脱身符；普通逃脱每次囚禁最多一次，失败可能延长囚禁。',
- multiplayer_realm:'按原游戏开放状态运行。开放后可空载入场、原生探索战斗、指定事件选项、低生命撤离；战斗逃脱仅在原生支持时提供。免费次数优先；钥匙遵守保护；操作由原生票据与结算确认，按角色资格和开放时间执行。'
+ multiplayer_realm:'托管当前秘境，探索与战斗由原游戏处理；达到生命或时长阈值时尝试撤离。可选自动空载入场，免费优先，钥匙遵守物品保护。'
 });
 Object.assign(taskFields,{
  social_sync:['social_interval'],partner_practice:['partner_practice_limit'],partner_social:['partner_target','partner_auto_invite','partner_auto_accept'],
@@ -154,8 +154,6 @@ function syncField(key,keepEditing=false){document.querySelectorAll(`[data-param
 function bindParameters(root){root.querySelectorAll('[data-param]').forEach(el=>el.addEventListener('change',async()=>{const key=el.dataset.param;try{await saveConfigEdit([key],readField(el));syncField(key);notice('参数已保存，下次执行按新参数复核。');}catch(e){syncField(key);notice(e.message,true);}}));}
 function fillSettings(){ $('global-fields').innerHTML=['growth_linked','interval','stop_at_level','allow_game_restart','auto_reconnect','reconnect_delay_seconds','reconnect_max_attempts','auto_steam_update','steam_update_interval'].filter(key=>specFor(key)).map(fieldHTML).join('');bindParameters($('global-fields'));$('weights').innerHTML=Object.entries(config.weights).map(([k,v])=>`<label>${safe(statNames[k]||k)}<input type="number" data-weight="${k}" min="0" max="1000" step="0.05" value="${v}"></label>`).join('');}
 function render(){renderUpdateNotice();const s=status.state,c=s.character||{};$('preserve-tradable').checked=config.preserve_tradable;$('protection-state').textContent=config.preserve_tradable?'已开启':'已关闭';
-const multiplayerFeedback=document.querySelector('[data-feedback="multiplayer_realm"]');
-if(multiplayerFeedback&&(!s.multiplayer?.enabled||s.multiplayer?.suspended))multiplayerFeedback.textContent='原游戏当前暂停或未开放，托管等待开放；没有发送入场请求。';
 const socialFeedback=document.querySelector('[data-feedback="partner_social"]');
 if(socialFeedback&&!config.partner_target)socialFeedback.textContent='未填写指定好友编号，定向结缘保持等待。';
 $('connection').textContent=status.connection?.state==='recovering'?`心跳延迟 · ${status.connection.heartbeat_age_seconds}秒`:status.connected?`已连接 · PID ${status.pid}`:'等待游戏连接';$('connection').classList.toggle('connected',status.connected);$('toggle').disabled=!status.enabled&&(!status.connected||!s.ready||(s.bridge_revision||0)<(status.minimum_bridge_revision||16));$('toggle').textContent=status.enabled?'暂停自动修炼':'开始自动修炼';$('name').textContent=c.name||'尚未连接角色';$('character-detail').textContent=`凡修 ${s.version||''} · ${s.network_blocked?'原客户端正在恢复服务器连接':s.online?'当前客户端会话已连接':'等待游戏恢复会话'}`;$('run-state').textContent=status.enabled?'自动修炼中':status.connected&&!s.ready?(s.login_queue?.active?'原生排队':s.network_blocked?'连接恢复中':s.battle_recovery?.state==='replaying'?'恢复战斗结算':'等待角色'):status.connected?'已暂停':'待连接';$('level').textContent=c.level==null?'待同步':`Lv. ${c.level}`;$('exp').textContent=`${number(c.exp)} / ${number(c.exp_needed)}`;$('wuxing').textContent=number(c.wuxing);$('cleared').textContent=number(s.progress?.cleared_ids?.length);$('success').textContent=number(status.stats.success||0);$('exp-fill').style.width=`${Math.min(100,(c.exp||0)/Math.max(1,c.exp_needed||1)*100)}%`;$('current-task').textContent=status.pending?.label||(status.connected&&(s.bridge_revision||0)<(status.minimum_bridge_revision||16)?'等待自有桥接在空闲时更新':status.reason);const selected=s.idle?.selected;$('idle-place').textContent=selected?`难度 ${selected.difficulty+1} · 第 ${selected.tier+1} 层 · ${selected.stage+1} 关`:'等待已通关关卡';$('next-place').textContent=s.next_dungeon?.name||'等待解锁';
@@ -179,7 +177,34 @@ function renderMultiplayerCapabilities() {
  let summary=card.querySelector('[data-mp-capability]');
  if(!summary){summary=document.createElement('p');summary.dataset.mpCapability='';summary.className='task-summary';card.append(summary);}
  summary.hidden=!unsupported;
- summary.textContent=unsupported?'当前原生版本不提供战斗逃脱。助手等待原生战斗结算，探索中仍按撤离条件处理。':'';
+ summary.textContent=unsupported?'战斗由原游戏自动结算，当前版本不支持战斗中逃脱。':'';
+ let detail=card.querySelector('[data-mp-status]');
+ if(!detail){detail=document.createElement('p');detail.dataset.mpStatus='';detail.className='task-summary';detail.setAttribute('aria-live','polite');card.querySelector('.task-feedback').before(detail);}
+ const stages={reserving:'入场确认中',cancelling:'原生入场核对中',confirming:'原生入场核对中',exploring:'探索中',choosing:'事件选择中',gathering:'采集中',in_combat:'原生战斗中',extracting:'撤离中',settling:'结算中'};
+ const blocks={REALM_NOT_ELIGIBLE:'角色尚未满足秘境资格',REALM_NOT_OPEN:'未到本场开放时间',REALM_CLOSED:'本场已结束',REALM_FULL:'本场人数已满',REALM_ACCOUNT_BUSY:'原生场次尚未结束',REALM_INSUFFICIENT_ITEM:'免费次数与可用钥匙不足',REALM_INVENTORY_UNAVAILABLE:'等待原生库存同步',REALM_NETWORK:'等待原生网络恢复',REALM_DISABLED:'秘境暂未开放',REALM_NOT_CONFIGURED:'秘境暂未配置'};
+ let text;
+ if(!status.connected||!status.state.ready)text='等待游戏连接并同步角色。';
+ else if(m.suspended||m.enabled===false)text='原游戏暂未开放，等待开放后再检查入场条件。';
+ else if(m.enabled!==true)text='等待原游戏同步秘境状态。';
+ else if(m.active){
+  text=stages[m.state]||'当前场次同步中';
+  if(m.admission_pending)text+=' · 沿用原生确认，不重复入场';
+  else if(m.command_pending)text+=' · 等待原生操作确认';
+  else if(m.needs_resume)text+=' · 等待恢复当前秘境视图';
+  else if(m.stale)text+=' · 等待新状态，暂不提交动作';
+  else{
+   text+=m.hp_known===false||m.hp_percent==null?' · 生命待同步':` · 生命 ${Math.round(m.hp_percent)}%`;
+   if(m.elapsed_seconds!=null)text+=` · ${m.elapsed_source==='observed'?'已观察':'已入场'} ${number(m.elapsed_seconds)} 秒`;
+   if(m.state==='choosing')text+=config.mp_event_option?` · 指定选项 ${config.mp_event_option}${m.event?.options?.includes(config.mp_event_option)?'':' 当前不可选，等待原生策略'}`:' · 使用原生事件策略';
+  }
+ }else if(!config.mp_auto_enter)text='自动入场已关闭；开启托管后仍接管已有场次。';
+ else if(m.native_busy)text='原游戏正在同步入场条件，等待完成。';
+ else if(!m.prepared)text='等待检查角色资格、开放场次与可用次数。';
+ else if(m.blocked_reason)text=blocks[m.blocked_reason]||'原游戏暂不允许入场，等待条件更新';
+ else if(m.available)text=m.free_entries>0?`免费入场剩余 ${number(m.free_entries)} 次，优先使用`:'免费次数已用完，入场前复核钥匙与物品保护';
+ else text='当前无可入场场次，按检查间隔重新同步。';
+ if(m.enabled===true&&!m.suspended){if(!config.tasks.multiplayer_realm)text+=' · 托管开关已关闭';else if(!status.enabled)text+=' · 自动修炼已暂停';}
+ detail.textContent=text.replace(/[。；]$/, '')+'。';
 }
 function renderExecutionStatus() {
  const detail=status.execution||{title:status.enabled?'自动修炼已开启':'等待运行状态',message:status.reason||'等待同步'};

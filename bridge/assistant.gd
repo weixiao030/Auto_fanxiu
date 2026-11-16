@@ -29,6 +29,8 @@ var social_attempts: Dictionary = {}
 var capture_attempts: Dictionary = {}
 var mp_prepare: Dictionary = {}
 var mp_prepared_at = 0
+var mp_observed_entry = ""
+var mp_observed_at = 0
 var realm_command: Dictionary = {}
 var inventory_options: Dictionary = {}
 var inventory_view: Dictionary = {}
@@ -147,7 +149,7 @@ func _snapshot() -> Dictionary:
 	var state = {"online": bool(steam.online), "ready": bool(gm.game_started) and main != null and native_recovery.get("state", "done") == "done",
 		"battle_recovery": {"state":native_recovery.get("state", "done"), "message":native_recovery.get("message", "正在核对服务器战斗结算")},
 		"network_blocked": bool(api.is_network_blocked()), "pending": 1 if _native_gameplay_pending() else 0,
-		"tutorial_finished": bool(gm.tutorial_finished()), "battle": false, "version": str(load("res://scripts/data/client_version.gd").VERSION), "bridge_revision": 45,
+		"tutorial_finished": bool(gm.tutorial_finished()), "battle": false, "version": str(load("res://scripts/data/client_version.gd").VERSION), "bridge_revision": 46,
 		"protection_policy": _protection_policy(),
 		"readiness": {"game_started": gm.game_started, "main_found": main != null,
 			"scene": str(get_tree().current_scene.get_path()) if get_tree().current_scene != null else ""}}
@@ -641,6 +643,9 @@ func _execute(command: Dictionary) -> void:
 		return
 	if api.is_client_update_blocked():
 		_done(id, false, "原游戏要求更新，已暂停自动操作")
+		return
+	if kind != "multiplayer_realm" and _multiplayer_snapshot(main).get("active", false):
+		_done(id, false, "等待原生秘境场次结束，取消其他玩法旧计划")
 		return
 	if (bool(main.battle_flow.in_combat) and kind != "multiplayer_realm") or api.dungeon_start_pending or _native_gameplay_pending() or _resource_realm_snapshot(main).battle_playing:
 		_done(id, false, "等待当前战斗结算")
@@ -1591,25 +1596,46 @@ func _check_external() -> void:
 
 func _multiplayer_snapshot(main) -> Dictionary:
 	var suspended = cfg.is_multiplayer_realm_suspended()
-	var result = {"suspended": suspended, "enabled": not suspended and cfg.get_value("multiplayer_realm", "enabled", false) == true, "active": false, "escape_supported": false}
-	if not result.enabled: return result
+	var result = {"suspended": suspended, "enabled": not suspended and cfg.get_value("multiplayer_realm", "enabled", false) == true, "active": false, "escape_supported": false, "native_busy": false}
+	if not result.enabled or main == null: return result
 	var mode = main.get("_realm_mode")
+	var prep = mode.preparation if mode != null else null
+	if prep != null and prep.visible:
+		result.native_busy = prep._pending
+		var admission: Dictionary = prep.data.get("active", {}) if prep.data.get("active") is Dictionary else {}
+		var confirming = prep._result_checks.jobs.has("entry")
+		if not str(admission.get("id", "")).is_empty() or confirming:
+			result.merge({"active": true, "admission_pending": true, "command_pending": true, "stale": true,
+				"entry_id": str(admission.get("id", "")), "state": str(admission.get("state", "confirming"))}, true)
+			return result
 	if mode != null and mode.view != null: result.escape_supported = mode.view.has_method("_can_escape")
 	if mode != null and mode.view != null and (mode.active or not str(mode.get("_running_id") if mode.get("_running_id") != null else "").is_empty()):
 		var view = mode.view
 		var data: Dictionary = view.data
-		var resources: Dictionary = view._combat_resources if data.get("state") == "in_combat" else data.get("panel", {}).get("resources", {})
+		var panel: Dictionary = data.get("panel", {})
+		var resources: Dictionary = view._combat_resources if data.get("state") == "in_combat" else panel.get("resources", {})
+		var hp_known = resources.has("hp") and float(resources.get("max_hp", 0)) > 0
 		var event: Dictionary = data.get("exploration", {}).get("event", {})
 		var options: Array = []
-		for row in event.get("options", []):
-			if row is Dictionary and not row.get("disabled", false) and int(event.get("due_at", 0)) > view._now(): options.append(str(row.get("id", "")))
-		result.merge({"active": true, "entry_id": view.entry_id, "state": data.get("state", ""),
-			"stale": view._stale or Time.get_ticks_msec() - int(view._received_tick) >= 5000, "command_pending": view._command_pending or not realm_command.is_empty() or (view.get("_command_watch") != null and not str(view.get("_command_watch")).is_empty()) or (view.get("_queued_intent") is Dictionary and not view.get("_queued_intent").is_empty()),
-			"can_extract": data.get("panel", {}).get("can_extract", false), "can_escape": view._can_escape() if view.has_method("_can_escape") else false, "battle_id": view._battle_id,
-			"hp_percent": 100.0 * float(resources.get("hp", 0)) / maxf(1.0, float(resources.get("max_hp", 1))),
-			"elapsed_seconds": maxi(0, int((view._now() - int(data.get("entered_at", view._now()))) / 1000)),
-			"event": {"id": str(event.get("id", "")), "options": options}})
+		if data.get("state") == "choosing" and event.get("status") == "choosing" and not str(event.get("id", "")).is_empty() and int(event.get("due_at", 0)) > view._now():
+			for row in event.get("options", []):
+				if row is Dictionary and not row.get("disabled", false) and not str(row.get("id", "")).is_empty(): options.append(str(row.id))
+		var entry = str(mode._running_id) if not str(mode._running_id).is_empty() else str(view.entry_id)
+		if mp_observed_entry != entry:
+			mp_observed_entry = entry;mp_observed_at = Time.get_ticks_msec()
+		var elapsed = maxi(0, int((Time.get_ticks_msec() - mp_observed_at) / 1000))
+		var entered = int(data.get("entered_at", 0))
+		var server_elapsed = entered > 0 and int(panel.get("server_time", 0)) >= entered
+		if server_elapsed: elapsed = maxi(elapsed, int((view._now() - entered) / 1000))
+		result.merge({"active": true, "entry_id": entry, "state": data.get("state", ""), "needs_resume": not mode.active,
+			"stale": view._stale or Time.get_ticks_msec() - int(view._received_tick) >= 35000 or str(view.entry_id) != entry,
+			"command_pending": view._command_pending or not realm_command.is_empty() or (view.get("_command_watch") != null and not str(view.get("_command_watch")).is_empty()) or (view.get("_queued_intent") is Dictionary and not view.get("_queued_intent").is_empty()),
+			"can_extract": panel.get("can_extract", false), "can_escape": view._can_escape() if view.has_method("_can_escape") else false, "battle_id": view._battle_id,
+			"hp_known": hp_known, "hp_percent": clampf(100.0 * float(resources.hp) / float(resources.max_hp), 0, 100) if hp_known else null,
+			"elapsed_seconds": elapsed, "elapsed_source": "server" if server_elapsed else "observed",
+			"event": {"id": str(event.get("id", "")), "options": options}}, true)
 	else:
+		mp_observed_entry = "";mp_observed_at = 0
 		result["prepared"] = not mp_prepare.is_empty() and Time.get_ticks_msec() - mp_prepared_at < int(policy.get("mp_interval", 60)) * 1000
 		result["available"] = mp_prepare.get("available", false) and mp_prepare.get("inventory_ready", false) and str(mp_prepare.get("blocked_reason", "")).is_empty()
 		result["free_entries"] = maxi(0, int(mp_prepare.get("free_entry", {}).get("remaining", 0)))
@@ -1631,11 +1657,23 @@ func _execute_multiplayer(command: Dictionary) -> void:
 		_done(id, false, "原游戏多人秘境暂停或未开放，未提交请求")
 		return
 	var action = str(p.get("action", ""))
-	if action == "prepare":
+	if action == "resume":
+		if current.get("needs_resume", false) and not current.get("command_pending", false) and str(current.get("entry_id", "")) == str(p.get("entry_id", "")):
+			main._realm_mode.show_realm()
+			_done(id, true, "已恢复当前秘境的原生托管视图")
+		else: _done(id, false, "秘境场次已变化，等待同步")
+	elif action in ["prepare", "enter"] and (current.get("active", false) or current.get("native_busy", false)):
+		_done(id, false, "原生秘境正在入场或运行，未重复提交")
+	elif action == "prepare":
 		api.multiplayer_realm(func(response: Dictionary, ok: bool):
-			mp_prepare = response.get("multiplayer_realm", {}) if ok else {}
+			var incoming = response.get("multiplayer_realm", {}) if ok else {}
+			var valid = incoming is Dictionary and not incoming.is_empty() and (incoming.get("success", true) != false or incoming.has("blocked_reason"))
+			mp_prepare = incoming if valid else {}
 			mp_prepared_at = Time.get_ticks_msec()
-			_done(id, ok and not mp_prepare.is_empty(), "秘境准备状态已同步" if ok else "秘境准备未确认")
+			if valid and incoming.get("active") is Dictionary and not str(incoming.active.get("id", "")).is_empty():
+				main._realm_mode._resumed(response, true)
+				mp_prepare.clear()
+			_done(id, valid, "秘境准备状态已同步" if valid else "秘境准备未确认")
 		, "prepare", {})
 	elif action == "enter":
 		var parts = str(current.get("key_item", "")).split(":")
@@ -1650,14 +1688,20 @@ func _execute_multiplayer(command: Dictionary) -> void:
 			if accepted:
 				if str(answer.get("state", "")) in ["reserving", "cancelling"]: main._realm_mode.preparation.resume_admission(answer)
 				else: main._realm_mode.enter(answer)
+			elif not ok:
+				# Let the native status checks resolve an ambiguous enter; never resubmit it.
+				var prep = main._realm_mode.preparation
+				prep.open_prepare(true)
+				prep._result_checks.watch("entry", "request:" + id, true)
+				prep._state_timer.start(30.0)
 			mp_prepare.clear()
-			_done(id, accepted, "入场已确认" if accepted else "入场未确认")
+			_done(id, accepted, ("入场请求已接受，等待原生确认" if str(answer.get("state", "")) in ["reserving", "cancelling"] else "入场已确认") if accepted else "入场未确认，等待原生核对")
 		, "enter", {"realm_key": p.realm_key, "request_id": id, "carry": [], "strategy": mp_prepare.get("strategy_defaults", {})})
 	elif current.get("active", false) and str(p.get("entry_id", "")) == str(current.get("entry_id", "")):
 		var view = main._realm_mode.view
 		var valid = not current.stale and not current.command_pending
-		if action == "extract": valid = valid and current.can_extract and (current.hp_percent <= float(policy.get("mp_extract_hp", 40)) or current.elapsed_seconds >= int(policy.get("mp_max_seconds", 900)))
-		elif action == "battle_escape": valid = valid and current.can_escape and current.battle_id == p.get("battle_id") and current.hp_percent <= float(policy.get("mp_escape_hp", 25))
+		if action == "extract": valid = valid and current.can_extract and ((current.get("hp_known", false) and current.hp_percent <= float(policy.get("mp_extract_hp", 40))) or current.elapsed_seconds >= int(policy.get("mp_max_seconds", 900)))
+		elif action == "battle_escape": valid = valid and current.get("hp_known", false) and current.can_escape and current.battle_id == p.get("battle_id") and current.hp_percent <= float(policy.get("mp_escape_hp", 25))
 		elif action == "choose": valid = valid and current.state == "choosing" and current.event.id == p.get("event_id") and current.event.options.has(str(p.get("option_id", ""))) and str(p.get("option_id", "")) == str(policy.get("mp_event_option", ""))
 		else: valid = false
 		if not valid:

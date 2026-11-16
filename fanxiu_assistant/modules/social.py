@@ -103,14 +103,18 @@ class SocialPlans:
 
     def plan_multiplayer_realm(self, s):
         m=s.get('multiplayer', {})
-        if m.get('suspended') or m.get('enabled') is not True: return
+        if m.get('suspended') or m.get('enabled') is not True or m.get('native_busy') or m.get('admission_pending'): return
         if m.get('active'):
-            if m.get('stale') or m.get('command_pending'): return
+            if m.get('command_pending') or not m.get('entry_id'): return
             params={'entry_id':m['entry_id']}
-            hp=m.get('hp_percent',100)
-            if m.get('can_escape') and hp <= self.config['mp_escape_hp']:
+            if m.get('needs_resume'):
+                return dict(params, action='resume'), 'multiplayer_realm', 10
+            if m.get('stale'): return
+            hp=m.get('hp_percent')
+            hp_known=m.get('hp_known', True) and type(hp) in (int, float) and 0 <= hp <= 100
+            if m.get('can_escape') and hp_known and hp <= self.config['mp_escape_hp']:
                 return dict(params, action='battle_escape', battle_id=m['battle_id']), 'multiplayer_realm', 10
-            if m.get('can_extract') and (hp<=self.config['mp_extract_hp'] or m.get('elapsed_seconds',0)>=self.config['mp_max_seconds']):
+            if m.get('can_extract') and ((hp_known and hp<=self.config['mp_extract_hp']) or m.get('elapsed_seconds',0)>=self.config['mp_max_seconds']):
                 return dict(params, action='extract'), 'multiplayer_realm', 10
             option=self.config['mp_event_option']; event=m.get('event', {})
             if m.get('state')=='choosing' and option and option in event.get('options',[]):

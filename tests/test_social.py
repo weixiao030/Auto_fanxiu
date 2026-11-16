@@ -124,6 +124,39 @@ class SocialTests(unittest.TestCase):
         cmd=self.choose('multiplayer_realm')
         self.assertEqual(cmd['params']['action'],'extract')
 
+    def test_multiplayer_unknown_hp_waits_but_duration_still_extracts(self):
+        self.s['multiplayer'] = dict(enabled=True, active=True, entry_id='x', can_extract=True,
+            can_escape=True, battle_id='b', hp_known=False, hp_percent=None)
+        self.assertIsNone(self.choose('multiplayer_realm'))
+        self.s['multiplayer']['elapsed_seconds'] = 901
+        self.assertEqual(self.choose('multiplayer_realm')['params']['action'], 'extract')
+
+    def test_multiplayer_native_admission_does_not_resubmit_or_interrupt(self):
+        self.p.config['mp_auto_enter'] = True
+        self.s['multiplayer'] = dict(enabled=True, active=True, admission_pending=True,
+            state='reserving', prepared=True, available=True, free_entries=1, realm_key='r')
+        self.assertIsNone(self.choose('multiplayer_realm'))
+        self.assertIsNone(self.choose('social_sync'))
+        self.s['multiplayer'] = dict(enabled=True, native_busy=True)
+        self.assertIsNone(self.choose('multiplayer_realm'))
+
+    def test_multiplayer_hidden_view_resumes_before_using_stale_health(self):
+        self.s['multiplayer'] = dict(enabled=True, active=True, entry_id='x', needs_resume=True,
+            stale=True, hp_percent=1, can_extract=True)
+        self.assertEqual(self.choose('multiplayer_realm')['params']['action'], 'resume')
+        self.s['multiplayer']['command_pending'] = True
+        self.assertIsNone(self.choose('multiplayer_realm'))
+
+    def test_multiplayer_event_only_uses_current_enabled_option(self):
+        self.p.config['mp_event_option'] = 'safe'
+        self.s['multiplayer'] = dict(enabled=True, active=True, entry_id='x', state='choosing',
+            event={'id':'event', 'options':[]})
+        self.assertIsNone(self.choose('multiplayer_realm'))
+        self.s['multiplayer']['event']['options'] = ['safe']
+        self.assertEqual(self.choose('multiplayer_realm')['params']['option_id'], 'safe')
+        self.s['multiplayer']['stale'] = True
+        self.assertIsNone(self.choose('multiplayer_realm'))
+
     def test_multiplayer_unknown_binding_blocks_entry(self):
         self.s['multiplayer']={'enabled':True,'prepared':True,'available':True,'key_count':1,'realm_key':'realm','key_item':'material:4008'}
         self.s['inventory_view']={'items':[{'key':'material:4008','trade_category':'consumable','quality':'common'}]}

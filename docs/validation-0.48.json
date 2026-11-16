@@ -1,0 +1,48 @@
+{
+  "status": "FUNCTIONAL_PASS",
+  "release_ready": true,
+  "app_version": "0.48",
+  "bridge_revision": 46,
+  "game_version": "0.2.116",
+  "source_fingerprint": "d0f69c44004e60f6f6339b3e4b2c59aebd049ba2503d6f362920652ca3224dac",
+  "exe_sha256": "e77e4b95062d0410a73eb1bc3de90a54967929ffd4c6a2fe2dd7e53c0747e592",
+  "created_at": "2026-11-16T22:13:20.412055+00:00",
+  "acceptance_basis": "functional_checks_with_user_waived_additional_live_wait",
+  "functional_acceptance": {
+    "app_version": "0.48",
+    "source_fingerprint": "d0f69c44004e60f6f6339b3e4b2c59aebd049ba2503d6f362920652ca3224dac",
+    "user_requested_skip_monitoring": true,
+    "request": "不用实际确认了，确认功能能正常使用和完成目标就行"
+  },
+  "current_version_monitoring_rerun": false,
+  "multiplayer_full_live_run_verified": false,
+  "full_growth_verified": false,
+  "checks": {
+    "python_tests": 250,
+    "bridge_checks": 443,
+    "session_upgrade_checks": 21,
+    "positive_task_paths": 43,
+    "task_count": 43,
+    "native_api_calls": 60,
+    "native_methods": 44,
+    "native_failures": [],
+    "standalone_exe_runs": 2,
+    "responsive_layouts": 10,
+    "page_errors": []
+  },
+  "deployment": {
+    "original_game_preserved": true,
+    "user_config_unchanged": true,
+    "connected": true,
+    "automation_enabled": true
+  },
+  "historical_stability": {
+    "app_version": "0.47",
+    "bridge_revision": 45,
+    "elapsed_seconds": 1800.03,
+    "same_as_current_candidate": false
+  },
+  "scope": "本版通过原生恢复脚本核对、隔离计划器与桥接、浏览器和独立EXE检查；保留原实例并确认新版连接。按用户指令不新增多人秘境完整实机场次或30分钟等待。0.47历史稳定性记录不视为0.48监控。",
+  "private_game_sources_bundled": false,
+  "user_data_bundled": false
+}

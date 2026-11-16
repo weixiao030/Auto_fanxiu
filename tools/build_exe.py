@@ -19,6 +19,25 @@ def sha256(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def validate_functional_waiver(record, info, source, checks):
+    if (not isinstance(record, dict) or record.get('user_requested_skip_monitoring') is not True
+            or not isinstance(record.get('request'), str) or not record['request'].strip()):
+        raise ValueError('需要记录用户明确免重新监控的指令')
+    if record.get('app_version') != info['app_version'] or record.get('source_fingerprint') != source:
+        raise ValueError('功能验收指令必须绑定当前版本与源码')
+    for name in ('quick-regression', 'summary', 'native-contracts', 'project-ui', 'growth-ui', 'review-ui'):
+        check = checks.get(name, {})
+        if check.get('status') != 'PASS' or check.get('source_fingerprint') != source:
+            raise ValueError('当前候选检查尚未通过：' + name)
+    if checks['summary'].get('exe_sha256') != info['sha256']:
+        raise ValueError('独立EXE检查与候选不一致')
+    regression = checks['quick-regression']
+    if regression.get('positive_task_paths', 0) != regression.get('task_count') or not regression.get('task_count'):
+        raise ValueError('任务正向路径覆盖不完整')
+    if checks['native-contracts'].get('failures'):
+        raise ValueError('原生接口核对失败')
+
+
 def main():
     parser=argparse.ArgumentParser()
     modes=parser.add_mutually_exclusive_group(required=True)
@@ -63,20 +82,21 @@ def main():
     if args.user_waiver:
         record=json.loads(args.user_waiver.read_text(encoding='utf-8'))
         info=json.loads((candidate/'build-info.json').read_text(encoding='utf-8'))
-        ui=json.loads((ROOT/'runtime/exe-validation/update-notice-ui.json').read_text(encoding='utf-8'))
-        checks=json.loads((ROOT/'runtime/exe-validation/summary.json').read_text(encoding='utf-8'))
-        if record.get('user_requested_skip_monitoring') is not True or not record.get('request'):
-            raise SystemExit('需要记录用户明确免重新监控的指令')
+        checks={key:json.loads((ROOT/'runtime/exe-validation'/f'{key}.json').read_text(encoding='utf-8'))
+                for key in ('quick-regression', 'summary', 'native-contracts', 'project-ui', 'growth-ui', 'review-ui')}
+        try:
+            validate_functional_waiver(record, info, source, checks)
+        except ValueError as error:
+            raise SystemExit(str(error))
         if info['source_fingerprint']!=source or info['sha256']!=sha256(candidate/name):
             raise SystemExit('候选文件与源码不一致')
-        if ui.get('status')!='PASS' or checks.get('status')!='PASS' or ui.get('source_fingerprint')!=source or checks.get('source_fingerprint')!=source or checks.get('exe_sha256')!=info['sha256']:
-            raise SystemExit('当前版本前端与独立EXE检查尚未通过')
         dist=ROOT/'dist';dist.mkdir(exist_ok=True)
         target=dist/name;temporary=target.with_suffix('.exe.tmp')
         shutil.copy2(candidate/name,temporary);temporary.replace(target)
         assert sha256(target)==info['sha256']
         info.update(validation_status='CHECKS_PASS_MONITORING_WAIVED',
-                    monitoring_waiver=record,monitoring_rerun=False)
+                    monitoring_waiver=record,monitoring_rerun=False,full_growth_verified=False,
+                    acceptance_basis="functional_checks_with_user_waived_additional_live_wait")
         (dist/'build-info.json').write_text(json.dumps(info,ensure_ascii=False,indent=2),encoding='utf-8')
         print(json.dumps(info,ensure_ascii=False))
         return

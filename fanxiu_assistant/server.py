@@ -22,7 +22,7 @@ from .readiness import waiting_message
 from .flow_evidence import sanitize_receipt
 from .outcomes import failure_metadata, result_detail
 
-MIN_BRIDGE_REVISION = 45
+MIN_BRIDGE_REVISION = 46
 
 
 def atomic_json(path, value):

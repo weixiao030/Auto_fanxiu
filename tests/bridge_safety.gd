@@ -151,6 +151,52 @@ class FakeApi extends RefCounted:
 	func resource_realm(cb, action, params):
 		calls.append(["resource_realm",action,params]);cb.call({"resource_realm":{"success":true}},true)
 
+class FakeRealmChecks extends RefCounted:
+	var jobs = {}
+	func watch(channel, id, enabled):
+		if enabled: jobs[channel] = id
+class FakeRealmTimer extends RefCounted:
+	var seconds = 0.0
+	func start(value): seconds = value
+class FakeRealmPreparation extends RefCounted:
+	var visible = false
+	var _pending = false
+	var data = {}
+	var _result_checks = FakeRealmChecks.new()
+	var _state_timer = FakeRealmTimer.new()
+	func open_prepare(_resume): visible = true; _pending = true
+	func resume_admission(answer): visible = true; data.active = answer
+class FakeRealmView extends RefCounted:
+	var data = {}
+	var entry_id = "entry"
+	var _combat_resources = {}
+	var _received_tick = 0
+	var _stale = false
+	var _command_pending = false
+	var _command_watch = ""
+	var _queued_intent = {}
+	var _operation_query = {}
+	var _battle_id = "battle"
+	var calls = []
+	func _now(): return int(data.get("panel", {}).get("server_time", 0)) + maxi(0, Time.get_ticks_msec() - _received_tick)
+	func _command(action, params):
+		calls.append([action, params]); _operation_query = {"request_id":"native-ticket"}
+class FakeRealmMode extends RefCounted:
+	var active = true
+	var _running_id = "entry"
+	var view = FakeRealmView.new()
+	var preparation = FakeRealmPreparation.new()
+	var resumed = []
+	func show_realm(): active = true;view._stale = false;view._received_tick = Time.get_ticks_msec()
+	func _resumed(response, _ok): resumed.append(response)
+	func enter(answer): resumed.append(answer)
+class RealmApi extends RefCounted:
+	var calls = []
+	var reply = {}
+	var ok = true
+	func multiplayer_realm(cb, action, params):
+		calls.append([action, params]); cb.call(reply, ok)
+
 class FakeConfig extends RefCounted:
 	var realm_table = []
 	var resource_enabled = false
@@ -162,11 +208,13 @@ class FakeConfig extends RefCounted:
 	func get_equipment_fixed_stats(_slot, level, _quality): return {"atk":level*2,"hp":level*10}
 	func get_partner_config(): return {}
 	func get_equipment_slots(): return ["weapon"]
-	func is_multiplayer_realm_suspended(): return true
+	var multiplayer_enabled = false
+	func is_multiplayer_realm_suspended(): return not multiplayer_enabled
 	func get_value(table, key, fallback):
 		if table == "cave_world" and key == "explore": return {"max_discovered_coords":world_max_points}
 		if table == "realm" and key == "breakthroughs": return realm_table
 		if table == "resource_realm" and key == "enabled": return resource_enabled
+		if table == "multiplayer_realm" and key == "enabled": return multiplayer_enabled
 		if table == "global_params" and key == "synth_required_count": return 3
 		if table == "equipment_upgrade" and key == "synthesis": return synthesis_table
 		if table == "items" and key == "materials": return [{"id": 1, "use_type": "resource_pack"}, {"id": 2, "use_type": "pill"}]
@@ -413,6 +461,68 @@ func check_growth_receipts():
 	check(receipt.after.level==receipt.before.level+1,"breakthrough receipt lost applied level gain")
 	check(flow.begin(b,{"kind":"collect","params":{}}).is_empty(),"unsupported mutation manufactured a receipt")
 	b.free(); b=saved_bridge
+
+func check_multiplayer_lifecycle():
+	var c = ContextBridge.new()
+	c.cfg = FakeConfig.new();c.cfg.multiplayer_enabled = true
+	c.fake_main = load("res://fake_main.gd").new()
+	var mode = FakeRealmMode.new();c.fake_main._realm_mode = mode
+	c.api = RealmApi.new()
+	var view = mode.view
+	c.gm = FakeGame.new();c.steam = {"online":true};c.api = FakeApi.new()
+	c._execute({"id":"old-plan","kind":"collect","params":{}})
+	check(c.api.calls.is_empty() and not c.results.back().ok, "old gameplay plan interrupted an active native realm")
+	c.api = RealmApi.new()
+	view._received_tick = Time.get_ticks_msec() - 10000
+	view.data = {"state":"exploring", "panel":{"server_time":2000000,"resources":{"hp":80,"max_hp":100},"can_extract":true}}
+	var sample = c._multiplayer_snapshot(c.fake_main)
+	check(not sample.stale and sample.hp_known and sample.hp_percent == 80, "10-second native realm snapshot was incorrectly rejected")
+	view._received_tick = Time.get_ticks_msec() - 35000
+	check(c._multiplayer_snapshot(c.fake_main).stale, "expired native realm snapshot allowed automation")
+	view._received_tick = Time.get_ticks_msec()
+	view.data.state = "in_combat"
+	sample = c._multiplayer_snapshot(c.fake_main)
+	check(not sample.hp_known and sample.hp_percent == null, "unknown battle HP was treated as zero")
+	c._execute_multiplayer({"id":"hp","params":{"action":"extract","entry_id":"entry"}})
+	check(view.calls.is_empty(), "unknown HP triggered low-health extraction")
+	c.mp_observed_at = Time.get_ticks_msec() - 901000
+	sample = c._multiplayer_snapshot(c.fake_main)
+	check(sample.elapsed_seconds >= 900 and sample.elapsed_source == "observed", "missing entry timestamp disabled duration limit")
+	c._execute_multiplayer({"id":"time","params":{"action":"extract","entry_id":"entry"}})
+	check(view.calls.size() == 1, "duration limit depended on known HP")
+	c.realm_command.clear();view.calls.clear()
+	view.data.entered_at = 1000000
+	sample = c._multiplayer_snapshot(c.fake_main)
+	check(sample.elapsed_seconds >= 1000 and sample.elapsed_source == "server", "valid server entry timestamp was ignored")
+	mode._running_id = "another";view.entry_id = "another"
+	view.data.erase("entered_at")
+	sample = c._multiplayer_snapshot(c.fake_main)
+	check(sample.elapsed_seconds == 0, "new realm inherited previous duration")
+	view.data.state = "choosing"
+	view.data.exploration = {"event":{"id":"event","status":"choosing","due_at":view._now()+10000,"options":[{"id":"safe"},{"id":"disabled","disabled":true},{"id":""}]}}
+	check(c._multiplayer_snapshot(c.fake_main).event.options == ["safe"], "realm exposed disabled or empty choices")
+	view.data.exploration.event.due_at = view._now()-1
+	check(c._multiplayer_snapshot(c.fake_main).event.options.is_empty(), "expired realm choice remained actionable")
+	mode.active = false;view._stale = true
+	c._execute_multiplayer({"id":"resume","params":{"action":"resume","entry_id":"another"}})
+	check(mode.active, "hidden realm view was never resumed through native mode")
+	mode.active = false;mode._running_id = "";view.entry_id = ""
+	mode.preparation.visible = true;mode.preparation.data.active = {"id":"pending","state":"reserving"}
+	sample = c._multiplayer_snapshot(c.fake_main)
+	check(sample.active and sample.admission_pending and sample.command_pending, "native admission was treated as idle")
+	c._execute_multiplayer({"id":"duplicate","params":{"action":"enter"}})
+	check(c.api.calls.is_empty(), "admission received duplicate enter")
+	mode.preparation.visible = false;mode.preparation.data.clear()
+	c.api.reply = {"multiplayer_realm":{"success":true,"active":{"id":"existing","state":"exploring"}}}
+	c._execute_multiplayer({"id":"prepare","params":{"action":"prepare"}})
+	check(mode.resumed.size() == 1 and c.mp_prepare.is_empty(), "prepare failed to hand existing entry to native resume")
+	c.policy = {"mp_auto_enter":true}
+	c.mp_prepare = {"available":true,"inventory_ready":true,"realm_key":"realm","free_entry":{"remaining":1}}
+	c.mp_prepared_at = Time.get_ticks_msec();c.api.ok = false
+	c._execute_multiplayer({"id":"uncertain","params":{"action":"enter","realm_key":"realm"}})
+	check(mode.preparation._result_checks.jobs.has("entry") and mode.preparation._state_timer.seconds == 30, "uncertain enter bypassed native confirmation")
+	check(c._multiplayer_snapshot(c.fake_main).admission_pending, "uncertain enter allowed another admission before status resolved")
+	c.fake_main.free();c.free()
 
 func check_new_native_contracts():
 	var server_state = Node.new()
@@ -1383,6 +1493,7 @@ func _ready():
 	check(queue.active and queue.ahead_count==214,"native queue facts were not read")
 	check(queue.next_poll_seconds<=23 and queue.next_poll_seconds>=0,"native queue poll seconds were not bounded")
 	check(queue.keys().size()==5 and not queue.has("_queue_token"),"queue snapshot exported non-whitelisted fields")
+	check_multiplayer_lifecycle()
 	check_new_native_contracts()
 	check_challenge_recovery()
 	check_bound_first_exploration()

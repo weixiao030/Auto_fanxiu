@@ -108,6 +108,23 @@ def main():
         page.reload(wait_until='networkidle')
         assert page.locator('[data-param="mp_escape_hp"]').is_visible()
         assert not page.locator('[data-mp-capability]').is_visible()
+        # Refresh the same card across lifecycle transitions; no reload may clear stale text.
+        def mp_status(value):
+            state['state']['multiplayer'] = value
+            page.evaluate("value => {status.state.multiplayer=value;render();}", value)
+            return page.locator('[data-mp-status]').inner_text()
+        assert '暂未开放' in mp_status(dict(enabled=False, suspended=True))
+        assert '自动入场已关闭' in mp_status(dict(enabled=True, suspended=False, active=False))
+        assert '暂停或未开放' not in page.locator('[data-feedback="multiplayer_realm"]').inner_text()
+        assert '重复入场' in mp_status(dict(enabled=True, active=True, admission_pending=True, state='reserving'))
+        assert '生命待同步' in mp_status(dict(enabled=True, active=True, state='in_combat', hp_known=False, hp_percent=None))
+        assert '等待新状态' in mp_status(dict(enabled=True, active=True, state='exploring', stale=True))
+        assert '生命 80%' in mp_status(dict(enabled=True, active=True, state='exploring', hp_known=True, hp_percent=80, elapsed_seconds=61, elapsed_source='observed'))
+        assert '已观察 61' in page.locator('[data-mp-status]').inner_text()
+        assert '原生事件策略' in mp_status(dict(enabled=True, active=True, state='choosing', event={'options':[]}))
+        page.locator('[data-card="multiplayer_realm"]').screenshot(path=str(output / 'multiplayer-1440.png'))
+        page.set_viewport_size({'width':390, 'height':1100})
+        page.locator('[data-card="multiplayer_realm"]').screenshot(path=str(output / 'multiplayer-390.png'))
         state['state']['multiplayer'] = multiplayer
         page.reload(wait_until='networkidle')
         for width in (1920, 1440, 1024, 768, 390):

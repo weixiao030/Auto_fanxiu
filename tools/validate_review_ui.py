@@ -45,6 +45,8 @@ def main():
                 page.on('pageerror',lambda e:errors.append(str(e)))
                 page.on('request',lambda req:requests.append(req.post_data_json) if req.method=='POST' and req.url.endswith('/api/config') else None)
                 page.goto(f'http://127.0.0.1:{http.server_port}',wait_until='networkidle')
+                if page.locator('#disclaimer-dialog').is_visible():
+                    page.locator('#disclaimer-later').click()
                 page.wait_for_function('() => config!==null && confirmedConfig!==null')
                 assert page.locator('.function-card').count()==43
                 assert '214' in page.locator('#growth-message').inner_text()
