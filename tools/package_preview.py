@@ -33,7 +33,7 @@ def main():
     report_file = output/'VALIDATION.json'
     report_file.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf8')
     info.update(validation_status='PRERELEASE_'+report['status'], prerelease=True,
-        full_growth_verified=report['release_ready'], formal_release_promoted=False,
+        full_growth_verified=report['full_growth_verified'], formal_release_promoted=False,
         acceptance_seconds=report['acceptance']['elapsed_seconds'], game_version=report['acceptance']['game_version'])
     info_file = output/'build-info.json'
     info_file.write_text(json.dumps(info, ensure_ascii=False, indent=2), encoding='utf8')

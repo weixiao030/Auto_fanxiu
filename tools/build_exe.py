@@ -26,7 +26,10 @@ def main():
     modes.add_argument('--acceptance',type=Path)
     modes.add_argument('--user-waiver',type=Path)
     parser.add_argument('--candidate-dir',type=Path,default=ROOT/'.private/release-candidate')
+    parser.add_argument('--functional-acceptance',type=Path,help='绑定当前候选的维护者功能验收指令')
     args=parser.parse_args()
+    if args.functional_acceptance and not args.acceptance:
+        parser.error('--functional-acceptance 仅用于已有完整稳定性验收的候选晋级')
     candidate=args.candidate_dir.resolve()
     if args.candidate:
         version_path=ROOT/'fanxiu_assistant/version.py'
@@ -88,16 +91,20 @@ def main():
             or result.get('app_version')!=info['app_version'] or result.get('initial',{}).get('revision')!=info['bridge_revision']):
         raise SystemExit('候选EXE、当前源码与实机验收不一致，需要重新构建和验收')
     preflight=subprocess.run([sys.executable,'-X','utf8',str(ROOT/'tools/release_growth.py'),
-        '--acceptance',str(report),'--candidate-dir',str(candidate),'--check-only'],
+        '--acceptance',str(report),'--candidate-dir',str(candidate),'--check-only',
+        *(['--functional-acceptance',str(args.functional_acceptance.resolve())] if args.functional_acceptance else [])],
         cwd=ROOT,check=True,capture_output=True,text=True,encoding='utf-8')
-    if not json.loads(preflight.stdout).get('release_ready'):
-        raise SystemExit('完整成长发布门槛尚未满足，保持现有dist不变')
+    verified=json.loads(preflight.stdout)
+    if not verified.get('release_ready'):
+        raise SystemExit('发布验收尚未满足，保持现有dist不变')
     dist=ROOT/'dist';dist.mkdir(exist_ok=True)
     target=dist/name;temporary=target.with_suffix('.exe.tmp')
     shutil.copy2(candidate/name,temporary);temporary.replace(target)
     assert sha256(target)==info['sha256']
     info.update(validation_status='PASS',acceptance=str(report.relative_to(ROOT)),
-                acceptance_seconds=result['elapsed_seconds'],game_version=result.get('game_version'))
+                acceptance_seconds=result['elapsed_seconds'],game_version=result.get('game_version'),
+                acceptance_basis=verified['acceptance_basis'],full_growth_verified=verified['full_growth_verified'],
+                growth_chain_required=verified['growth_chain_required'],functional_acceptance=verified['functional_acceptance'])
     (dist/'build-info.json').write_text(json.dumps(info,ensure_ascii=False,indent=2),encoding='utf-8')
     print(json.dumps(info,ensure_ascii=False))
 

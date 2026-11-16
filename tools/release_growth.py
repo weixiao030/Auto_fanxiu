@@ -38,12 +38,36 @@ def write(path, content):
     temporary.replace(path)
 
 
+def publication_decision(full_growth_verified, functional_record, source, version):
+    """Keep functional release authorization separate from observed growth proof."""
+    authorized = None
+    if functional_record is not None:
+        require(isinstance(functional_record, dict), '功能验收记录必须是对象')
+        require(functional_record.get('user_requested_no_additional_live_confirmation') is True,
+                '需要维护者明确采用功能验收的指令记录')
+        require(functional_record.get('source_fingerprint') == source
+                and functional_record.get('app_version') == version, '功能验收记录不属于本候选')
+        request = functional_record.get('request')
+        require(isinstance(request, str) and 0 < len(request.strip()) <= 1000, '功能验收指令为空或过长')
+        authorized = {'app_version': version, 'source_fingerprint': source,
+            'user_requested_no_additional_live_confirmation': True, 'request': request.strip()}
+    full = full_growth_verified is True
+    ready = full or authorized is not None
+    return {'status': 'PASS' if full else ('FUNCTIONAL_PASS' if ready else 'STABILITY_PASS_GROWTH_PENDING'),
+        'release_ready': ready, 'full_growth_verified': full,
+        'growth_chain_required': authorized is None,
+        'acceptance_basis': 'functional_checks_and_existing_live_stability' if authorized else 'native_growth_chain',
+        'functional_acceptance': authorized}
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--acceptance', required=True, type=Path)
     parser.add_argument('--check-only', action='store_true')
     parser.add_argument('--candidate-dir', type=Path,
                         help='直接只读检查候选包；必须同时使用 --check-only')
+    parser.add_argument('--functional-acceptance', type=Path,
+                        help='绑定当前版本的维护者功能验收指令；保留已有稳定性与全部功能检查')
     args = parser.parse_args()
     if args.candidate_dir and not args.check_only:
         parser.error('--candidate-dir 仅用于 --check-only，完整门槛通过后再发布')
@@ -78,13 +102,15 @@ def main():
     event_path = args.acceptance.parent / 'events.jsonl'
     events = [json.loads(line) for line in event_path.read_text(encoding='utf-8').splitlines() if line.strip()] if event_path.is_file() else []
     flow = assess_flow(events, started=a['started'], finished=a['finished'], revision=MIN_BRIDGE_REVISION)
-    release_ready = bool(refine and downstream and flow['causal_chain_proven'])
+    full_growth = bool(refine and downstream and flow['causal_chain_proven'])
+    decision = publication_decision(full_growth, read(args.functional_acceptance) if args.functional_acceptance else None, source, VERSION)
     limit = ('本候选已确认原生炼化奖励补足缺口，经连续资源交接后实际完成强化或突破；只证明记录中列出的成长链。'
-             if release_ready else '动作计数不能证明资源联动；本候选缺少原生奖励、连续投入与实际成长结果的完整记录，仍待实测。')
+             if full_growth else ('功能检查与既有30分钟稳定性验收通过；按维护者要求不再等待特定成长链实际触发。完整资源交接链仍未实测，未触发分支不作为实机成功。'
+             if decision['release_ready'] else '动作计数不能证明资源联动；本候选缺少原生奖励、连续投入与实际成长结果的完整记录，仍待实测。'))
     public = ('status', 'elapsed_seconds', 'required_seconds', 'samples', 'started', 'finished', 'failures',
               'source_fingerprint', 'exe_sha256', 'app_version', 'game_version', 'inventory_refreshes',
               'protected_equipment_checked', 'tradable_equipment_checked', 'preserved_unbound_item_types_checked', 'fixed_item_types_checked')
-    report = {'status': 'PASS' if release_ready else 'STABILITY_PASS_GROWTH_PENDING', 'release_ready': release_ready, 'app_version': VERSION, 'bridge_revision': MIN_BRIDGE_REVISION, 'sha256': digest,
+    report = {**decision, 'app_version': VERSION, 'bridge_revision': MIN_BRIDGE_REVISION, 'sha256': digest,
         'source_fingerprint': source, 'acceptance': {k: a[k] for k in public},
         'native_contracts': {k: checks['native'][k] for k in ('status', 'game_version', 'call_sites', 'distinct_native_methods', 'failures', 'scope')},
         'offline': {k: checks['regression'][k] for k in ('python_tests', 'bridge_checks', 'task_count', 'positive_task_paths')},
@@ -99,12 +125,15 @@ def main():
     if args.check_only:
         print(json.dumps(report, ensure_ascii=False, indent=2))
         return
-    require(report['release_ready'], '完整成长实机条件未满足：需有原生奖励补足缺口、连续用料及实际强化/突破记录，暂不生成正式发布包')
+    require(report['release_ready'], '需取得完整成长实证，或使用维护者对本候选明确记录的功能验收要求；稳定性与功能检查仍须全部通过')
+    report.update(prerelease=False, formal_release_promoted=True)
     report_path = ROOT / 'dist' / f'{APP_TITLE}-验证报告.json'
     write(report_path, json.dumps(report, ensure_ascii=False, indent=2))
     hk = timezone(timedelta(hours=8))
     start, finish = [datetime.fromisoformat(a[k]).astimezone(hk).strftime('%Y-%m-%d %H:%M:%S') for k in ('started', 'finished')]
     validation = f'''# {APP_TITLE} 验证记录
+
+发布状态：`{report['status']}`；依据：`{report['acceptance_basis']}`。完整成长链实测：{'已取得' if report['full_growth_verified'] else '未取得，不作为本次发布前提'}。
 
 - 对照游戏{a['game_version']}核对{len(TASK_ORDER)}项任务，桥接修订{MIN_BRIDGE_REVISION}；正确规则见`FULL_LOGIC_AUDIT.md`。
 - Python {checks['regression']['python_tests']}项、Godot桥接 {checks['regression']['bridge_checks']}项及{len(TASK_ORDER)}项正向路径通过；属于隔离验证。
@@ -129,7 +158,7 @@ EXE SHA256：`{digest}`。
 
 [项目 GitHub](https://github.com/weixiao030/Auto_fanxiu) · [版本发布](https://github.com/weixiao030/Auto_fanxiu/releases) · [全部参数](PARAMETERS.md) · [验证记录](VALIDATION.md)
 
-本轮适配游戏{a['game_version']}、桥接{MIN_BRIDGE_REVISION}，修复化物批量限制、突破失败补偿、永久增益与多人秘境指令确认。新增原生自动服丹协调、时装加成和运行诊断，详见[适配说明](UPDATE_0.2.116.md)。
+本轮适配游戏{a['game_version']}、桥接{MIN_BRIDGE_REVISION}，修复化物批量限制、突破失败补偿、永久增益与多人秘境指令确认。新增原生自动服丹协调、时装加成和运行诊断，补齐本人看管道侣的解救限制，详见[适配说明](UPDATE_0.2.116.md)。
 
 最终候选连续实机监控{a['elapsed_seconds']}秒通过，发布EXE与受验候选逐字节一致。{limit}未触发的多人秘境完整场次等分支单独记录覆盖边界。
 
@@ -138,7 +167,6 @@ EXE SHA256：`{digest}`。
 ''' + old[old.index('## 双击使用'):]
     readme = readme.replace('## 双击使用', '![本机网页工作台](docs/images/workbench.png)\n\n## 双击使用', 1)
     readme = re.sub(r'猫头凡修助手0[.]\d+[.]exe', EXE_NAME, readme).replace('42项任务', f'{len(TASK_ORDER)}项任务')
-    readme = readme.replace('择优迁居 |', '择优迁居、资源秘境补给 |')
     if '## 成长联动' not in readme:
         readme += '\n## 成长联动\n\n网页显示需求、可用库存、缺口和保护原因。成长用料与各任务自身保留量相加；资源不足时等待，不支出预计随机产出。炼化保留原生排除项、后续需求、固定锁及交易保护；没有盈余时继续领取、挂机和世界补给。\n\n窥真镜可选自动按成长缺口或固定目标，桥接执行前独立重算并服从最新手动目标。资源秘境有真实入口及对应缺口才入场，免费用尽默认不耗秘境令。\n'
     write(ROOT / 'README.md', readme)
@@ -147,7 +175,7 @@ EXE SHA256：`{digest}`。
         f'最终候选连续监控{a["elapsed_seconds"]}秒、{a["samples"]}次采样通过；真实确认范围见`VALIDATION.md`。{limit}')
     write(ROOT / 'FULL_LOGIC_AUDIT.md', audit)
     log = (ROOT / 'MODLOG.md').read_text(encoding='utf-8')
-    if not log.startswith(f'# {VERSION} ·'):
+    if not (log.startswith(f'# {VERSION} ·') or log.startswith(f'## {VERSION}：')):
         entry = f'''# {VERSION} · 全模块成长联动与执行复核（桥接{MIN_BRIDGE_REVISION}）
 
 - {len(TASK_ORDER)}项任务迁入五个业务模块，统一注册、预算和有限优先调度。

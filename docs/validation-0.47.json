@@ -1,6 +1,15 @@
 {
-  "status": "STABILITY_PASS_GROWTH_PENDING",
-  "release_ready": false,
+  "status": "FUNCTIONAL_PASS",
+  "release_ready": true,
+  "full_growth_verified": false,
+  "growth_chain_required": false,
+  "acceptance_basis": "functional_checks_and_existing_live_stability",
+  "functional_acceptance": {
+    "app_version": "0.47",
+    "source_fingerprint": "0c0ccb6317cf886290c50cb2004fe05d9e5f3348dca6202bdbd1e993c82353bb",
+    "user_requested_no_additional_live_confirmation": true,
+    "request": "不用实际确认了，确认功能能正常使用和完成目标就行"
+  },
   "app_version": "0.47",
   "bridge_revision": 45,
   "sha256": "88a8a851f57d05c391eb000fcc60c78fd86500d89ca12698fa5d808c90fe9e05",
@@ -32,7 +41,7 @@
     "scope": "Static method existence and argument arity; does not prove server semantics."
   },
   "offline": {
-    "python_tests": 233,
+    "python_tests": 241,
     "bridge_checks": 426,
     "task_count": 43,
     "positive_task_paths": 43
@@ -112,7 +121,7 @@
     "chains": [],
     "scope": "Native reward, necessary resource handoff, exact quantities and actual upgrade/level gain; gaps or unrelated mutations invalidate the chain."
   },
-  "coverage_limit": "43项有隔离正向路径；实机只确认操作增量列出的玩法。动作计数不能证明资源联动；本候选缺少原生奖励、连续投入与实际成长结果的完整记录，仍待实测。",
-  "prerelease": true,
-  "formal_release_promoted": false
+  "coverage_limit": "43项有隔离正向路径；实机只确认操作增量列出的玩法。功能检查与既有30分钟稳定性验收通过；按维护者要求不再等待特定成长链实际触发。完整资源交接链仍未实测，未触发分支不作为实机成功。",
+  "prerelease": false,
+  "formal_release_promoted": true
 }
