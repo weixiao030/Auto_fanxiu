@@ -779,6 +779,20 @@ func _ready():
 	check(b.api.calls.size() == 1 and b.api.calls[0][1] == "accept_invite", "configured invitation rejected")
 	execute("partner_social", {"action": "accept_invite", "target": "123", "invite_id": 7})
 	check(b.api.calls.is_empty(), "invitation was submitted twice")
+	# The native client forbids rescuing a partner held by the current character.
+	b.steam["steamid"] = "self-fixture"
+	b.gm.partner = {"has_partner":true,"partner":{"steamid":"partner-fixture","furnace":{"capture_id":"partner-capture","master_steamid":"self-fixture","expires_at":9999999999999}}}
+	check(b._partner_snapshot().self_is_captor, "partner snapshot missed self captivity")
+	b.policy.partner_rescue_mode = "talisman_first"
+	for action in ["rescue_talisman", "rescue_start"]:
+		execute("partner_rescue", {"action":action,"target":"partner-fixture","capture_id":"partner-capture"})
+		check(b.api.calls.is_empty() and not b.results.back().ok, "self rescue reached native consumption or combat")
+	b.gm.partner.partner.furnace.master_steamid = "other-fixture"
+	check(not b._partner_snapshot().self_is_captor, "another captor was treated as the current player")
+	b.steam.erase("steamid")
+	b.gm.partner.partner.furnace.master_steamid = ""
+	check(not b._partner_snapshot().self_is_captor, "missing identities matched each other")
+	b.gm.partner = {}
 	b.gm.captured = true
 	b.gm.cave.captured_as_slave = {"capture_id": "capture", "attempted_escape": false}
 	b.gm.counts[4004] = 3

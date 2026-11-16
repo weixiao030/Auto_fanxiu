@@ -57,6 +57,16 @@ class SocialTests(unittest.TestCase):
         self.p.config['partner_target']='123'
         self.assertEqual(self.choose('partner_social')['params']['invite_id'],1)
 
+    def test_self_captor_blocks_talisman_and_battle_rescue(self):
+        self.s['partner'] = {'has_partner': True, 'synced_at': self.now, 'target': 'partner',
+            'self_is_captor': True, 'capture': {'capture_id': 'captivity', 'expires_at': self.now + 60000},
+            'rescue': {'count': 5, 'cost': 2, 'bound_only_safe': True}}
+        for mode in ('talisman', 'battle', 'talisman_first'):
+            self.p.config['partner_rescue_mode'] = mode
+            self.assertIsNone(self.choose('partner_rescue'), mode)
+        self.s['partner']['self_is_captor'] = False
+        self.assertIsNotNone(self.choose('partner_rescue'))
+
     def test_partner_practice_respects_server_and_user_limits(self):
         self.s['partner']={'has_partner':True,'synced_at':self.now,'daily':{'practice_used':1,'practice_limit':2}}
         self.p.config['partner_practice_limit']=1

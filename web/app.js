@@ -68,7 +68,7 @@ groups.push(['道侣与社交',['social_sync','partner_practice','partner_social
 Object.assign(descriptions,{
  social_sync:'同步道侣、双修次数和定向邀请状态。',partner_practice:'有道侣且未被捕时完成每日双修。',
  partner_social:'仅邀请或接受指定好友编号，不随机结缘，不发送聊天，不自动解除关系。',
- partner_rescue:'道侣被捕时按配置使用脱身符或战斗解救；消耗仍遵循交易保护。',
+ partner_rescue:'道侣被他人捕获时按配置使用脱身符或战斗解救；跳过自己看管的道侣，消耗遵循交易保护。',
  player_capture:'只从地图中的修士目标选择，核对战力、保护期和炉鼎空位；次数按尝试计。',
  player_occupy:'战力达标且洞府评分更高时挑战占领；失败可能被捕，受伤后等待恢复。',
  bounty_sync:'同步原游戏悬赏列表和服务器每日次数。',bounty_claim:'优先按战力门槛挑战怪物清剿，可单独允许玩家悬赏。',
@@ -163,7 +163,14 @@ document.querySelectorAll('[data-count]').forEach(el=>el.textContent=el.dataset.
 document.querySelectorAll('[data-feedback]').forEach(el=>{const kind=el.dataset.feedback,event=status.events?.find(e=>e.kind===kind&&['success','warning'].includes(e.level));if((status.pending?.kind===kind||status.pending?.parent_kind===kind)){el.textContent=`执行中 · 等待游戏确认 ${number(status.pending_seconds||0)} 秒`;el.classList.remove('failed');}else if(event){el.textContent=event.message.replace((status.labels[kind]||'')+'：','').replace('server busy','服务器繁忙，将按退避策略重试');el.classList.toggle('failed',event.level==='warning');}});
 if(lastConnection!==status.connected){notice(status.connected?'已连接当前游戏。开关与参数会自动保存，立即执行同样遵循资源保护和解锁条件。':'等待当前游戏内桥接连接。');lastConnection=status.connected;}
 const equipped=c.equip_slots||[],score=e=>Object.entries(config.weights).reduce((v,[k,w])=>v+(e.stats?.[k]||0)*w,0),items=[...(s.equipment||[])].sort((a,b)=>(equipped.includes(b.id)-equipped.includes(a.id))||score(b)-score(a));$('equipment-count').textContent=`${items.length} 件 · ${equipped.filter(id=>id>=0).length} 件穿戴中`;$('equipment-body').innerHTML=items.map(e=>`<tr><td>${safe(e.name)} <small>#${e.id}</small></td><td>${qualityNames[e.quality]||safe(e.quality)}</td><td>${e.level}</td><td>${number(score(e))}</td><td class="${e.locked||config.protected_equipment.includes(e.id)||config.manual_locks.includes('equipment:'+e.id)?'protected':''}">${e.locked?'游戏内锁定':config.manual_locks.includes('equipment:'+e.id)?'固定锁':config.protected_equipment.includes(e.id)?'手动保护':equipped.includes(e.id)?'穿戴中':e.bound!==true?(isTradePreserved({...e,kind:'equipment',trade_category:'equipment'})?'分类保留 · 未绑定':'可用 · 游戏装备'):'背包 · 绑定'}</td></tr>`).join('')||'<tr><td colspan="5" class="empty">等待同步</td></tr>';
-if($('maintenance-status'))$('maintenance-status').textContent=status.maintenance?.message||'断线恢复与Steam更新由独立EXE管理；当前通过网页查看游戏状态。';renderExecutionStatus();renderMultiplayerCapabilities();renderGrowth();renderGachaBalance();renderWorldExplorationStatus();renderBreakthroughStatus();renderSynthSummary();renderWorld();renderEvents();renderTaskControls();renderProtection();renderInventory();if(status.app_name){document.title=status.app_name;document.querySelector('.brand>span:last-child').textContent=status.app_name;}}
+if($('maintenance-status'))$('maintenance-status').textContent=status.maintenance?.message||'断线恢复与Steam更新由独立EXE管理；当前通过网页查看游戏状态。';renderExecutionStatus();renderMultiplayerCapabilities();renderPartnerRescueStatus();renderGrowth();renderGachaBalance();renderWorldExplorationStatus();renderBreakthroughStatus();renderSynthSummary();renderWorld();renderEvents();renderTaskControls();renderProtection();renderInventory();if(status.app_name){document.title=status.app_name;document.querySelector('.brand>span:last-child').textContent=status.app_name;}}
+function renderPartnerRescueStatus() {
+ const card=document.querySelector('[data-card="partner_rescue"]');if(!card)return;
+ let summary=card.querySelector('[data-rescue-status]');
+ if(!summary){summary=document.createElement('p');summary.dataset.rescueStatus='';summary.className='task-summary';card.append(summary);}
+ summary.hidden=status.state.partner?.self_is_captor!==true;
+ summary.textContent=summary.hidden?'':'道侣由当前角色看管，原游戏不允许自行解救；助手保留脱身符并等待状态变化。';
+}
 function renderMultiplayerCapabilities() {
  const card=document.querySelector('[data-card="multiplayer_realm"]');if(!card)return;
  const m=status.state.multiplayer||{};

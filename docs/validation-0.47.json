@@ -1,0 +1,118 @@
+{
+  "status": "STABILITY_PASS_GROWTH_PENDING",
+  "release_ready": false,
+  "app_version": "0.47",
+  "bridge_revision": 45,
+  "sha256": "88a8a851f57d05c391eb000fcc60c78fd86500d89ca12698fa5d808c90fe9e05",
+  "source_fingerprint": "0c0ccb6317cf886290c50cb2004fe05d9e5f3348dca6202bdbd1e993c82353bb",
+  "acceptance": {
+    "status": "PASS",
+    "elapsed_seconds": 1800.03,
+    "required_seconds": 1800,
+    "samples": 181,
+    "started": "2026-11-16T21:06:52.723622+00:00",
+    "finished": "2026-11-16T21:36:54.831464+00:00",
+    "failures": [],
+    "source_fingerprint": "0c0ccb6317cf886290c50cb2004fe05d9e5f3348dca6202bdbd1e993c82353bb",
+    "exe_sha256": "88a8a851f57d05c391eb000fcc60c78fd86500d89ca12698fa5d808c90fe9e05",
+    "app_version": "0.47",
+    "game_version": "0.2.116",
+    "inventory_refreshes": 31,
+    "protected_equipment_checked": 0,
+    "tradable_equipment_checked": 0,
+    "preserved_unbound_item_types_checked": 10,
+    "fixed_item_types_checked": 0
+  },
+  "native_contracts": {
+    "status": "PASS",
+    "game_version": "0.2.116",
+    "call_sites": 60,
+    "distinct_native_methods": 44,
+    "failures": [],
+    "scope": "Static method existence and argument arity; does not prove server semantics."
+  },
+  "offline": {
+    "python_tests": 233,
+    "bridge_checks": 426,
+    "task_count": 43,
+    "positive_task_paths": 43
+  },
+  "interface": {
+    "status": "PASS",
+    "evidence_kind": "headless_chromium_live_local_status",
+    "task_cards": 43,
+    "layouts": [
+      {
+        "width": 1440,
+        "theme": "light",
+        "scroll": 1440,
+        "border": "1px"
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "scroll": 1440,
+        "border": "1px"
+      },
+      {
+        "width": 390,
+        "theme": "light",
+        "scroll": 390,
+        "border": "1px"
+      },
+      {
+        "width": 390,
+        "theme": "dark",
+        "scroll": 390,
+        "border": "1px"
+      }
+    ],
+    "page_errors": [],
+    "post_requests": []
+  },
+  "project_interface": {
+    "status": "PASS",
+    "evidence_kind": "source_ui_live_read_only_status_isolated_browser",
+    "actual_payment_image_configured": true,
+    "scope": "Declaration timing, dismiss/acknowledge/reopen, focus, persistence, responsive rail and optional image. Synthetic white image only checks image-preview interaction; it is not payment or QR-scanning evidence."
+  },
+  "standalone": {
+    "status": "PASS",
+    "runs": 2,
+    "minimal_path_without_python": true,
+    "chinese_spaced_path": true,
+    "python_and_tcl_tk_bundled": true,
+    "private_runtime_or_game_files": false,
+    "clean_vm_tested": false
+  },
+  "confirmed_actions_during_monitoring": {
+    "collect": 23,
+    "world_sync": 19,
+    "challenge": 8,
+    "mail": 6,
+    "social_sync": 15,
+    "bounty_sync": 10,
+    "gacha": 9,
+    "synth": 5,
+    "equip": 3,
+    "harvest": 8,
+    "upgrade": 3,
+    "refine": 1,
+    "gongfa": 1
+  },
+  "normal_failures_during_monitoring": 9,
+  "growth_flow": {
+    "refine_observed": true,
+    "downstream_actions": {
+      "upgrade": 3
+    },
+    "schema": 1,
+    "causal_chain_proven": false,
+    "balanced_receipts": 3,
+    "chains": [],
+    "scope": "Native reward, necessary resource handoff, exact quantities and actual upgrade/level gain; gaps or unrelated mutations invalidate the chain."
+  },
+  "coverage_limit": "43项有隔离正向路径；实机只确认操作增量列出的玩法。动作计数不能证明资源联动；本候选缺少原生奖励、连续投入与实际成长结果的完整记录，仍待实测。",
+  "prerelease": true,
+  "formal_release_promoted": false
+}

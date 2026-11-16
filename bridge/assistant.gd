@@ -147,7 +147,7 @@ func _snapshot() -> Dictionary:
 	var state = {"online": bool(steam.online), "ready": bool(gm.game_started) and main != null and native_recovery.get("state", "done") == "done",
 		"battle_recovery": {"state":native_recovery.get("state", "done"), "message":native_recovery.get("message", "正在核对服务器战斗结算")},
 		"network_blocked": bool(api.is_network_blocked()), "pending": 1 if _native_gameplay_pending() else 0,
-		"tutorial_finished": bool(gm.tutorial_finished()), "battle": false, "version": str(load("res://scripts/data/client_version.gd").VERSION), "bridge_revision": 44,
+		"tutorial_finished": bool(gm.tutorial_finished()), "battle": false, "version": str(load("res://scripts/data/client_version.gd").VERSION), "bridge_revision": 45,
 		"protection_policy": _protection_policy(),
 		"readiness": {"game_started": gm.game_started, "main_found": main != null,
 			"scene": str(get_tree().current_scene.get_path()) if get_tree().current_scene != null else ""}}
@@ -1362,6 +1362,9 @@ func _partner_snapshot() -> Dictionary:
 		"target": str(other.get("steamid", "")), "name": str(other.get("name", "")), "daily": raw.get("daily", {}),
 		"cooldown_until": raw.get("cooldown_until", 0), "capture": other.get("furnace", {}) if other.get("furnace") is Dictionary else {},
 		"rescue": _prop_snapshot(int(rescue_cfg.get("rescue_talisman_id", 4004)), int(rescue_cfg.get("rescue_talisman_count", 2)))}
+	var self_id = ""
+	if steam != null and steam.get("steamid") != null: self_id = str(steam.get("steamid"))
+	info["self_is_captor"] = not self_id.is_empty() and str(info.capture.get("master_steamid", "")) == self_id
 	# Do not export private chat or unrelated profile data.
 	for key in ["received_invites", "sent_invites"]:
 		info[key] = []
@@ -1433,7 +1436,7 @@ func _execute_social(command: Dictionary) -> void:
 		"partner_rescue":
 			var partner = _partner_snapshot()
 			var captured: Dictionary = partner.capture
-			if not partner.has_partner or gm.is_captured_as_slave() or captured.is_empty() or int(captured.get("expires_at", 0)) <= now or str(partner.target) != str(p.get("target", "")) or str(captured.get("capture_id", "")) != str(p.get("capture_id", "")):
+			if not partner.has_partner or partner.self_is_captor or gm.is_captured_as_slave() or captured.is_empty() or int(captured.get("expires_at", 0)) <= now or str(partner.target) != str(p.get("target", "")) or str(captured.get("capture_id", "")) != str(p.get("capture_id", "")):
 				_done(id, false, "道侣或被捕状态已变化")
 				return
 			var mode = str(policy.get("partner_rescue_mode", "talisman"))

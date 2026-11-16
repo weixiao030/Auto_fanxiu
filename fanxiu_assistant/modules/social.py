@@ -34,7 +34,7 @@ class SocialPlans:
 
     def plan_partner_rescue(self, s):
         p = self._partner(s); f = p.get('capture', {})
-        if not p.get('has_partner') or not f or f.get('expires_at', 0) <= time.time()*1000 or s.get('world', {}).get('captured'): return
+        if not p.get('has_partner') or p.get('self_is_captor') or not f or f.get('expires_at', 0) <= time.time()*1000 or s.get('world', {}).get('captured'): return
         mode = self.config['partner_rescue_mode']; prop = p.get('rescue', {})
         if mode != 'battle' and prop.get('count', 0)-prop.get('cost', 2) >= self.config['rescue_prop_reserve'] and self.safe_flag(s,prop):
             return {'action':'rescue_talisman', 'target':p.get('target',''), 'capture_id':f.get('capture_id','')}, 'partner_result', 120
