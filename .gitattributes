@@ -1,0 +1,4 @@
+# Preserve exact reviewed bytes for source fingerprints on every checkout.
+* -text
+*.webp binary
+*.png binary

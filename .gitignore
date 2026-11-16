@@ -1,0 +1,19 @@
+# Local game, recovered sources, backups and validation data
+.private/
+runtime/
+# Builds and local environments
+dist/
+测试版*/
+完整包*/
+.venv/
+venv/
+__pycache__/
+node_modules/
+*.py[cod]
+*.log
+*.tmp
+*.spec
+# Never commit local pairing keys or credentials
+bridge.key
+.env
+.env.*
